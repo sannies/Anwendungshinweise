@@ -21,7 +21,14 @@ class AnwendungshinweiseStack(Stack):
         backend = Backend(
             self, "Backend", config=config, knowledge_base=knowledge_base
         )
-        frontend = Frontend(self, "Frontend", api_url=backend.api_url)
+        frontend = Frontend(
+            self,
+            "Frontend",
+            api_url=backend.api_url,
+            # Global eindeutiger OAC-Name (kontoweit) – prefix + region, damit
+            # mehrere Installationen/Regionen kollisionsfrei nebeneinander laufen.
+            oac_name=f"{config.resource_prefix}-{config.region}-oac",
+        )
 
         CfnOutput(self, "ApiUrl", value=backend.api_url, description="Basis-URL der REST-API")
         CfnOutput(

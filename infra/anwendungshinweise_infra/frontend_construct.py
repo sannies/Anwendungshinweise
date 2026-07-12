@@ -26,7 +26,7 @@ class Frontend(Construct):
     """S3-Bucket + CloudFront-Distribution mit dem gebauten Vue-Frontend."""
 
     def __init__(
-        self, scope: Construct, construct_id: str, *, api_url: str
+        self, scope: Construct, construct_id: str, *, api_url: str, oac_name: str
     ) -> None:
         super().__init__(scope, construct_id)
 
@@ -40,13 +40,25 @@ class Frontend(Construct):
             auto_delete_objects=True,
         )
 
+        # Origin Access Control ist eine KONTO-WEITE (globale) Ressource mit
+        # eindeutigem Namen. Daher explizit prefix-/regionsbasiert benennen –
+        # sonst kollidiert der von CDK aus dem Stack-Pfad abgeleitete Name mit
+        # Alt-Beständen bzw. mit weiteren Installationen.
+        oac = cloudfront.S3OriginAccessControl(
+            self,
+            "OAC",
+            origin_access_control_name=oac_name,
+        )
+
         self.distribution = cloudfront.Distribution(
             self,
             "Distribution",
             default_root_object="index.html",
             comment="Anwendungshinweise Demo-Frontend",
             default_behavior=cloudfront.BehaviorOptions(
-                origin=origins.S3BucketOrigin.with_origin_access_control(self.bucket),
+                origin=origins.S3BucketOrigin.with_origin_access_control(
+                    self.bucket, origin_access_control=oac
+                ),
                 viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
             ),
             error_responses=[
