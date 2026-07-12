@@ -13,6 +13,7 @@ from constructs import Construct
 
 from .config import StackConfig
 from .knowledge_base_construct import KnowledgeBase
+from .model import bedrock_model_arn
 from .paths import BACKEND_SRC
 
 
@@ -30,10 +31,10 @@ class Backend(Construct):
         super().__init__(scope, construct_id)
         stack = Stack.of(self)
 
-        # Cross-Region-Inference-Profile-ARN des Generierungsmodells (Claude).
-        generation_model_arn = (
-            f"arn:{Aws.PARTITION}:bedrock:{config.region}:{stack.account}:"
-            f"inference-profile/{config.generation_model_id}"
+        # ARN des Generierungsmodells (Foundation-Model wie Mistral oder ein
+        # Cross-Region-Inference-Profile wie Claude) – automatisch abgeleitet.
+        generation_model_arn = bedrock_model_arn(
+            Aws.PARTITION, config.region, stack.account, config.generation_model_id
         )
 
         common_env = {

@@ -61,8 +61,8 @@ Architekturdetails: siehe [`docs/architecture.md`](docs/architecture.md).
 - **Python ≥ 3.11**, **Node ≥ 20**, **npm**
 - **AWS CLI** konfiguriert mit einem Profil/Konto für **eu-central-1**
 - In der Bedrock-Konsole (eu-central-1) **Modellzugriff freischalten** für:
-  - `Amazon Titan Text Embeddings V2`
-  - `Anthropic Claude 3.5 Sonnet` (bzw. das in `cdk.json` gewählte Modell)
+  - `Amazon Titan Text Embeddings V2` (Embeddings)
+  - `Mistral Large` (Generierung, PoC-Default – bzw. das in `cdk.json` gewählte Modell)
 - **Docker wird nicht benötigt** – die Lambdas nutzen ausschließlich das im
   Runtime enthaltene `boto3`.
 
@@ -188,7 +188,7 @@ Zentrale Parameter stehen im CDK-Context (`infra/cdk.json`) und lassen sich per
 | `documentsPrefix` | `documents/` | S3-Prefix der Quelldateien |
 | `embeddingModelId` | `amazon.titan-embed-text-v2:0` | Embedding-Modell |
 | `embeddingDimensions` | `1024` | Vektordimension (muss zum Modell passen) |
-| `generationModelId` | `eu.anthropic.claude-3-5-sonnet-20240620-v1:0` | Generierungsmodell (EU Inference Profile) |
+| `generationModelId` | `mistral.mistral-large-2402-v1:0` | Generierungsmodell. Foundation-Model-ID (z. B. `mistral.…`), Inference-Profile-ID (z. B. `eu.anthropic.claude-3-5-sonnet-20240620-v1:0`) oder volle ARN – die passende ARN wird automatisch abgeleitet. |
 | `maxResults` | `8` | Anzahl der abgerufenen Passagen |
 | `chunkMaxTokens` / `chunkOverlapPercentage` | `300` / `20` | Chunking |
 

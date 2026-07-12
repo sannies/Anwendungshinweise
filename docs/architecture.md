@@ -25,7 +25,7 @@ flowchart TB
         APIFN -->|ListObjects| S3D
     end
 
-    KB -->|Generierung: Claude| BR[Bedrock Modell\nClaude 3.5 Sonnet]
+    KB -->|Generierung| BR[Bedrock Modell\nMistral Large]
 ```
 
 ## Komponenten
@@ -37,7 +37,7 @@ flowchart TB
 | Knowledge Base | Bedrock | Chunking, Embedding, Retrieval, Generierung (RAG) |
 | Vektorspeicher | S3 Vectors | Kostengünstige Ablage der Embeddings (Bucket + Index) |
 | Embedding-Modell | Bedrock Titan Text Embeddings v2 | 1024-dim Vektoren |
-| Generierungsmodell | Bedrock Claude 3.5 Sonnet (EU Inference Profile) | Antwortformulierung |
+| Generierungsmodell | Bedrock Mistral Large (PoC-Default; per Context umstellbar) | Antwortformulierung |
 | API-Handler | Lambda | `/query`, `/documents`, `/ingestion-jobs`, `/retrieve` |
 | API | API Gateway (REST) | Öffentlicher HTTP-Zugang inkl. CORS |
 | Frontend | S3 + CloudFront | Kleine Vue-Demo-Oberfläche |

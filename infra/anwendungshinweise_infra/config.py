@@ -34,7 +34,7 @@ class StackConfig:
             embedding_model_id=get("embeddingModelId", "amazon.titan-embed-text-v2:0"),
             embedding_dimensions=int(get("embeddingDimensions", 1024)),
             generation_model_id=get(
-                "generationModelId", "eu.anthropic.claude-3-5-sonnet-20240620-v1:0"
+                "generationModelId", "mistral.mistral-large-2402-v1:0"
             ),
             max_results=int(get("maxResults", 8)),
             chunk_max_tokens=int(get("chunkMaxTokens", 300)),
