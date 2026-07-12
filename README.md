@@ -139,6 +139,8 @@ Antwortformat:
 {
   "answer": "…",
   "sessionId": "…",
+  "grounded": true,
+  "warning": null,
   "sources": [
     {
       "document": "bfs-merkblatt.pdf",
@@ -161,6 +163,9 @@ Antwortformat:
 
 ### Quellen, Seiten & Deeplinks
 
+- Wird **kein ausreichender Treffer** in den PDFs gefunden, liefert die API
+  `grounded: false` samt `warning`-Text; das Frontend zeigt dann eine deutliche
+  Warnung und `uv run poe demo` steigt mit Warnung und Exit-Code 2 aus.
 - Die Vektorsuche läuft automatisch über **alle** indizierten PDFs; die
   zurückgegebenen `sources` sind genau die für die Frage **relevanten** PDFs.
 - Jede Fundstelle enthält die **Seitenzahl** (aus dem Bedrock-Metadatum

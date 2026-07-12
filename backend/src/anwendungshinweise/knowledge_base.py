@@ -43,6 +43,14 @@ $search_results$
 
 $output_format_instructions$"""
 
+# Formulierung, mit der das Modell bei fehlender Grundlage antwortet (siehe
+# Prompt). Wird zusätzlich zur Quellen-Prüfung zur Warnungs-Erkennung genutzt.
+NO_MATCH_PHRASE = "keine ausreichende angabe"
+NO_MATCH_WARNING = (
+    "Zu dieser Frage wurde in den hinterlegten Anwendungshinweisen kein "
+    "ausreichender Treffer gefunden – die Antwort ist nicht durch Quellen belegt."
+)
+
 
 def _s3_uri_to_name(uri: str | None) -> str | None:
     if not uri:
@@ -149,11 +157,18 @@ def retrieve_and_generate(
     citations = _flatten_citations(response.get("citations", []), links)
     sources = _aggregate_sources(citations, links)
 
+    answer_text = response.get("output", {}).get("text", "")
+    # "Sinnvoller Treffer" = es wurden Quellen herangezogen UND das Modell hat
+    # nicht die Nicht-gefunden-Formulierung ausgegeben.
+    grounded = bool(sources) and NO_MATCH_PHRASE not in answer_text.lower()
+
     return {
-        "answer": response.get("output", {}).get("text", ""),
+        "answer": answer_text,
         "sessionId": response.get("sessionId"),
         "citations": citations,
         "sources": sources,
+        "grounded": grounded,
+        "warning": None if grounded else NO_MATCH_WARNING,
     }
 
 

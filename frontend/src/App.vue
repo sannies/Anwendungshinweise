@@ -180,6 +180,9 @@ onMounted(loadKnowledgeBase)
         <p v-if="askError" class="error">{{ askError }}</p>
 
         <div v-if="answer" class="answer">
+          <div v-if="answer.warning || answer.grounded === false" class="warning">
+            ⚠️ {{ answer.warning || 'Kein ausreichender Treffer in den Anwendungshinweisen gefunden – die Antwort ist nicht durch Quellen belegt.' }}
+          </div>
           <h3>Antwort</h3>
           <p class="answer-text">{{ answer.answer }}</p>
 
@@ -600,6 +603,16 @@ th {
   padding: 0.6rem 0.8rem;
   border-radius: var(--radius);
   margin-top: 0.75rem;
+}
+.warning {
+  color: var(--warn);
+  background: #fff7e0;
+  border: 1px solid #f0d68a;
+  border-left: 3px solid var(--warn);
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius);
+  margin-bottom: 0.9rem;
+  font-weight: 600;
 }
 
 .site-footer {

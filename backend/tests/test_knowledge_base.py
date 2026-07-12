@@ -89,6 +89,35 @@ def test_retrieve_and_generate_shapes_output(fake_clients):
     assert cite["link"].endswith("#page=3")
     # Basis-URL (für den eingebetteten PDF.js-Viewer) ohne Seiten-Fragment.
     assert cite["pdfUrl"] and "#page=" not in cite["pdfUrl"]
+    # Treffer vorhanden -> keine Warnung.
+    assert result["grounded"] is True
+    assert result["warning"] is None
+
+
+class FakeAgentRuntimeNoMatch:
+    """Simuliert 'kein Treffer': keine Zitate + Nicht-gefunden-Antwort."""
+
+    def retrieve_and_generate(self, **kwargs):
+        return {
+            "sessionId": "sess-x",
+            "output": {
+                "text": "Dazu finde ich in den vorliegenden Anwendungshinweisen "
+                "keine ausreichende Angabe."
+            },
+            "citations": [],
+        }
+
+
+def test_no_match_sets_warning(fake_clients):
+    fake_clients["bedrock-agent-runtime"] = FakeAgentRuntimeNoMatch()
+    fake_clients["s3"] = FakeS3()
+    cfg = load_config()
+
+    result = kb.retrieve_and_generate(cfg, "Völlig fachfremde Frage?")
+
+    assert result["grounded"] is False
+    assert result["warning"] and "kein" in result["warning"].lower()
+    assert result["sources"] == []
 
 
 def test_sources_aggregate_pages_and_link(fake_clients):

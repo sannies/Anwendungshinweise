@@ -117,8 +117,14 @@ def main() -> None:
             print(f"   - {s.get('document')}{page_str}")
             if s.get("link"):
                 print(f"     {s['link']}")
-    else:
-        print("\n(keine Quellen – ggf. sind noch keine passenden PDFs indiziert)")
+
+    # Mit Warnung + Fehlercode aussteigen, wenn kein sinnvoller Treffer.
+    if result.get("grounded") is False or result.get("warning"):
+        warning = result.get("warning") or (
+            "Kein ausreichender Treffer in den Anwendungshinweisen gefunden."
+        )
+        print(f"\n⚠️  WARNUNG: {warning}", file=sys.stderr)
+        sys.exit(2)
 
 
 if __name__ == "__main__":
