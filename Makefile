@@ -8,6 +8,10 @@ VENV := .venv
 PY := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 CDK := npx --yes aws-cdk@2
+# Absoluter Pfad zum venv-Python. Wird der CDK-CLI per --app übergeben, damit
+# die App garantiert mit dem venv-Interpreter läuft – unabhängig davon, worauf
+# "python3" nach einem `source activate` gerade zeigt.
+CDK_APP := --app "$(CURDIR)/$(VENV)/bin/python app.py"
 
 .DEFAULT_GOAL := help
 
@@ -65,23 +69,23 @@ build-frontend: ## Frontend für die Auslieferung bauen (nach frontend/dist)
 # --------------------------------------------------------------------------
 # Infrastruktur (CDK)
 # --------------------------------------------------------------------------
-# Die CDK-App wird über die venv-Python-Umgebung ausgeführt (cdk.json ->
-# "python3 app.py"), daher vor jedem CDK-Aufruf die venv aktivieren.
+# Der CDK-CLI wird der venv-Interpreter explizit via --app übergeben
+# (siehe CDK_APP oben) – kein Verlass auf `source activate`.
 .PHONY: synth
 synth: $(DEPS_STAMP) ## CloudFormation-Template synthetisieren
-	cd infra && source ../$(VENV)/bin/activate && $(CDK) synth
+	cd infra && $(CDK) synth $(CDK_APP)
 
 .PHONY: bootstrap
 bootstrap: $(DEPS_STAMP) ## CDK-Bootstrap für das Konto/Region (einmalig)
-	cd infra && source ../$(VENV)/bin/activate && $(CDK) bootstrap
+	cd infra && $(CDK) bootstrap $(CDK_APP)
 
 .PHONY: deploy
 deploy: $(DEPS_STAMP) build-frontend ## Frontend bauen und den kompletten Stack deployen
-	cd infra && source ../$(VENV)/bin/activate && $(CDK) deploy --require-approval never
+	cd infra && $(CDK) deploy $(CDK_APP) --require-approval never
 
 .PHONY: destroy
 destroy: $(DEPS_STAMP) ## Stack wieder abbauen
-	cd infra && source ../$(VENV)/bin/activate && $(CDK) destroy --force
+	cd infra && $(CDK) destroy $(CDK_APP) --force
 
 # --------------------------------------------------------------------------
 # End-to-End-Demo (nach dem Deploy)
