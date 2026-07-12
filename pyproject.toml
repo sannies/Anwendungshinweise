@@ -1,0 +1,104 @@
+# Root-Projekt: Werkzeug-/Task-Orchestrierung via uv + poethepoet.
+# Ersetzt das frühere Makefile.
+#
+#   uv sync                      # Python-Env (.venv) einrichten
+#   uv run poe <task>            # Task ausführen (siehe [tool.poe.tasks])
+#   uv run poe                   # alle Tasks auflisten
+#
+# Node-Tooling (npm/npx cdk) wird von den Tasks nur aufgerufen – uv verwaltet
+# ausschließlich die Python-Seite.
+
+[project]
+name = "anwendungshinweise-workspace"
+version = "0.1.0"
+description = "Orchestrierung der Anwendungshinweise-Wissensbasis (CDK + Backend + Frontend)"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv]
+# Das Root-Projekt ist kein installierbares Paket, nur Env-/Task-Verwaltung.
+package = false
+
+[dependency-groups]
+# Wird von `uv sync` standardmäßig installiert.
+dev = [
+    "aws-cdk-lib>=2.238.0",
+    "constructs>=10.0.0,<11.0.0",
+    "boto3>=1.35",
+    "botocore>=1.35",
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "poethepoet>=0.29",
+    "anwendungshinweise-backend",
+]
+
+[tool.uv.sources]
+# Backend-Paket editierbar aus dem Unterverzeichnis einbinden.
+anwendungshinweise-backend = { path = "backend", editable = true }
+
+# --------------------------------------------------------------------------
+# Tasks (poethepoet) – Aufruf: `uv run poe <name>`
+# --------------------------------------------------------------------------
+[tool.poe.tasks.install]
+cmd = "npm install"
+cwd = "frontend"
+help = "Frontend-npm-Abhängigkeiten installieren (Python-Env: `uv sync`)"
+
+[tool.poe.tasks.lint]
+cmd = "ruff check backend infra scripts"
+help = "Ruff-Linting"
+
+[tool.poe.tasks.test-backend]
+cmd = "pytest -q"
+cwd = "backend"
+help = "Backend-Tests"
+
+[tool.poe.tasks.test-infra]
+cmd = "pytest -q"
+cwd = "infra"
+env = { PYTHONPATH = "." }
+help = "CDK-Infrastruktur-Tests"
+
+[tool.poe.tasks.test]
+sequence = ["test-backend", "test-infra"]
+help = "Alle Python-Tests"
+
+[tool.poe.tasks.dev-frontend]
+cmd = "npm run dev"
+cwd = "frontend"
+help = "Frontend lokal starten (Vite Dev-Server, Port 5173)"
+
+[tool.poe.tasks.build-frontend]
+cmd = "npm run build"
+cwd = "frontend"
+help = "Frontend für die Auslieferung bauen (nach frontend/dist)"
+
+# CDK-Tasks: der venv-Interpreter wird der CLI explizit via --app übergeben
+# ($VIRTUAL_ENV wird von `uv run` gesetzt) – kein Verlass auf PATH/activate.
+[tool.poe.tasks.synth]
+shell = 'cd infra && npx --yes aws-cdk@2 synth --app "$VIRTUAL_ENV/bin/python app.py"'
+help = "CloudFormation-Template synthetisieren"
+
+[tool.poe.tasks.bootstrap]
+shell = 'cd infra && npx --yes aws-cdk@2 bootstrap --app "$VIRTUAL_ENV/bin/python app.py"'
+help = "CDK-Bootstrap für Konto/Region (einmalig)"
+
+[tool.poe.tasks.deploy]
+shell = 'cd infra && npx --yes aws-cdk@2 deploy --app "$VIRTUAL_ENV/bin/python app.py" --require-approval never'
+deps = ["build-frontend"]
+help = "Frontend bauen und den kompletten Stack deployen"
+
+[tool.poe.tasks.destroy]
+shell = 'cd infra && npx --yes aws-cdk@2 destroy --app "$VIRTUAL_ENV/bin/python app.py" --force'
+help = "Stack wieder abbauen"
+
+[tool.poe.tasks.demo]
+cmd = "python scripts/e2e_demo.py"
+help = "E2E-Demo. Bsp: uv run poe demo --pdf sample-docs/x.pdf --question '…'  (nur fragen: --skip-upload)"
+
+[tool.ruff]
+line-length = 100
+src = ["infra", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

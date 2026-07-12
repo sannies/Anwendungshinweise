@@ -20,7 +20,7 @@ class StackConfig:
     chunk_overlap_percentage: int
 
     @classmethod
-    def from_app(cls, app: cdk.App) -> "StackConfig":
+    def from_app(cls, app: cdk.App) -> StackConfig:
         ctx = app.node.try_get_context
 
         def get(key: str, default):

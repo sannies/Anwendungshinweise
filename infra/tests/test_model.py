@@ -6,7 +6,9 @@ from anwendungshinweise_infra.model import bedrock_model_arn, is_inference_profi
 
 
 def test_foundation_model_id_yields_foundation_model_arn():
-    arn = bedrock_model_arn("aws", "eu-central-1", "123456789012", "mistral.mistral-large-2402-v1:0")
+    arn = bedrock_model_arn(
+        "aws", "eu-central-1", "123456789012", "mistral.mistral-large-2402-v1:0"
+    )
     assert arn == "arn:aws:bedrock:eu-central-1::foundation-model/mistral.mistral-large-2402-v1:0"
 
 

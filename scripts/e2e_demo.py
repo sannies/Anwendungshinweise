@@ -10,7 +10,7 @@ Beispiele
     # PDF hochladen, auf Indizierung warten, Frage stellen:
     python scripts/e2e_demo.py \
         --pdf sample-docs/bfs-merkblatt.pdf \
-        --question "Muss ich eine neue Kalksandsteinfassade vor dem Verkleben der Dämmung grundieren?"
+        --question "Muss ich eine Kalksandsteinfassade vor dem Dämmung-Verkleben grundieren?"
 
     # Nur fragen (PDFs sind bereits indiziert):
     python scripts/e2e_demo.py --skip-upload \

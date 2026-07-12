@@ -53,12 +53,14 @@ Architekturdetails: siehe [`docs/architecture.md`](docs/architecture.md).
 │   └── src/{App.vue,api.js}
 ├── docs/architecture.md
 ├── sample-docs/               # (leer) Ablage für lokale Test-PDFs
-└── Makefile
+├── pyproject.toml            # uv-Projekt + poe-Tasks (Orchestrierung)
+└── uv.lock
 ```
 
 ## Voraussetzungen
 
-- **Python ≥ 3.11**, **Node ≥ 20**, **npm**
+- **[uv](https://docs.astral.sh/uv/)** (verwaltet Python-Env und Tasks), **Node ≥ 20**, **npm**
+- **Python ≥ 3.11** (uv installiert bei Bedarf eine passende Version selbst)
 - **AWS CLI** konfiguriert mit einem Profil/Konto für **eu-central-1**
 - In der Bedrock-Konsole (eu-central-1) **Modellzugriff freischalten** für:
   - `Amazon Titan Text Embeddings V2` (Embeddings)
@@ -73,18 +75,22 @@ Architekturdetails: siehe [`docs/architecture.md`](docs/architecture.md).
 
 ## Loslegen
 
+Die Orchestrierung läuft über **uv + poethepoet** (Tasks in `pyproject.toml`).
+`uv run poe` listet alle Tasks auf.
+
 ```bash
-# 1) Abhängigkeiten installieren (Python-venv + Frontend)
-make install
+# 1) Python-Env einrichten (.venv) + Frontend-Abhängigkeiten
+uv sync
+uv run poe install        # npm install im Frontend
 
 # 2) Tests ausführen
-make test
+uv run poe test
 
 # 3) Einmalig: CDK-Bootstrap für Konto/Region
-make bootstrap
+uv run poe bootstrap
 
 # 4) Frontend bauen + kompletten Stack deployen
-make deploy
+uv run poe deploy
 ```
 
 Nach dem Deploy zeigt die CLI u. a. diese **Outputs**:
@@ -171,7 +177,7 @@ Antwortformat:
 ```bash
 cd frontend
 cp .env.example .env      # VITE_API_BASE_URL = ApiUrl aus dem Deploy eintragen
-npm run dev               # http://localhost:5173
+cd .. && uv run poe dev-frontend   # http://localhost:5173
 ```
 
 Im Deployment wird die API-URL automatisch über eine `config.json` im
@@ -195,18 +201,30 @@ Zentrale Parameter stehen im CDK-Context (`infra/cdk.json`) und lassen sich per
 ## Tests & Qualität
 
 ```bash
-make test           # Backend- + Infra-Tests
-make lint           # Ruff
-make synth          # CloudFormation-Template erzeugen
+uv run poe test     # Backend- + Infra-Tests
+uv run poe lint     # Ruff (backend, infra, scripts)
+uv run poe synth    # CloudFormation-Template erzeugen
 ```
 
-Die CI (`.github/workflows/ci.yml`) führt Backend-Tests, Infra-Tests inkl.
-`cdk synth` und den Frontend-Build aus.
+`uv run poe` (ohne Task) listet alle verfügbaren Tasks auf. Die CI
+(`.github/workflows/ci.yml`) führt Lint, Tests inkl. `cdk synth` und den
+Frontend-Build aus.
+
+## Echte Frage stellen (nach dem Deploy)
+
+```bash
+# PDF hochladen, Indizierung abwarten, Frage stellen:
+uv run poe demo --pdf sample-docs/mein-merkblatt.pdf \
+  --question "Muss ich eine neue Kalksandsteinfassade vor dem Verkleben der Dämmung grundieren?"
+
+# Nur fragen (PDFs bereits indiziert):
+uv run poe demo --skip-upload --question "Wie gehe ich bei losem Putz auf einer WDVS-Fassade vor?"
+```
 
 ## Aufräumen
 
 ```bash
-make destroy
+uv run poe destroy
 ```
 
 > Der S3-Vectors-Bucket lässt sich nur löschen, wenn er leer ist. Sollte
