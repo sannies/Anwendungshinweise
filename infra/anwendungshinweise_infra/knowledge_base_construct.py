@@ -102,7 +102,8 @@ class KnowledgeBase(Construct):
                     embedding_model_configuration=bedrock.CfnKnowledgeBase.EmbeddingModelConfigurationProperty(
                         bedrock_embedding_model_configuration=bedrock.CfnKnowledgeBase.BedrockEmbeddingModelConfigurationProperty(
                             dimensions=config.embedding_dimensions,
-                            embedding_data_type="FLOAT",
+                            # S3-Vectors-Speicher erwartet FLOAT32 (nicht FLOAT).
+                            embedding_data_type="FLOAT32",
                         ),
                     ),
                 ),
