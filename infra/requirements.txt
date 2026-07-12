@@ -1,0 +1,3 @@
+# CDK-Bibliothek mit S3-Vectors-Support (aws_s3vectors, Bedrock S3VectorsConfiguration)
+aws-cdk-lib>=2.238.0
+constructs>=10.0.0,<11.0.0

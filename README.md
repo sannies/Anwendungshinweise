@@ -1,1 +1,194 @@
-# Anwendungshinweise
+# Anwendungshinweise-Wissensbasis
+
+Eine AWS-CDK-basierte Anwendung, die PDF-**Anwendungshinweise** (Merkblätter,
+technische Richtlinien) des deutschen Maler- und Lackiererhandwerks einliest,
+indiziert und **natürlichsprachliche Fachfragen** beantwortet – **ausschließlich**
+auf Grundlage der hinterlegten Dokumente (kein allgemeines Weltwissen).
+
+> Beispielfragen:
+> - *„Ich habe eine neue Kalksandsteinfassade ohne Wärmedämmung und möchte die
+>   Dämmung verkleben. Muss ich die Fassade vorher grundieren?“*
+> - *„Ich habe losen Putz auf einer Wärmedämmverbundfassade und bin mit der
+>   Sanierung beauftragt. Wie gehe ich vor?“*
+
+Die Anwendung dient als Grundlage, um zu beurteilen, ob eine Arbeit „nach den
+Regeln der Kunst“ ausgeführt wurde – im Streitfall ein wichtiger Nachweis.
+
+## Was steckt drin?
+
+| Anforderung | Umsetzung |
+|---|---|
+| PDFs einlesen & verstehen | Amazon Bedrock Knowledge Base (RAG) |
+| Automatische Indizierung bei S3-Upload | S3-Event → Lambda → `StartIngestionJob` |
+| Antworten nur aus dem PDF-Kanon | `RetrieveAndGenerate` + strikter Grounding-Prompt, Temperatur 0 |
+| Abfrage-API | API Gateway (REST) + Lambda |
+| „Welche PDFs sind eingeflossen?“ + Debug | `/documents`, `/ingestion-jobs`, `/retrieve` |
+| Kleines Demo-Frontend | Vue 3 (Vite) auf S3 + CloudFront |
+| Region | **eu-central-1 (Frankfurt)** |
+| Backend | **Python** (nur boto3, kein Bundling nötig) |
+| Vektorspeicher | **Amazon S3 Vectors** (pay-per-use, günstig für Demos) |
+
+Architekturdetails: siehe [`docs/architecture.md`](docs/architecture.md).
+
+## Projektstruktur
+
+```
+.
+├── infra/                     # AWS-CDK-App (Python)
+│   ├── app.py
+│   ├── cdk.json               # Konfiguration (Modelle, Prefix, Chunking …)
+│   ├── anwendungshinweise_infra/
+│   │   ├── knowledge_base_construct.py   # S3 + S3 Vectors + Bedrock KB
+│   │   ├── backend_construct.py          # Lambdas + REST-API + S3-Trigger
+│   │   ├── frontend_construct.py         # S3 + CloudFront
+│   │   └── main_stack.py
+│   └── tests/                 # Template-Assertions
+├── backend/                   # Lambda-Handler (Python, boto3)
+│   ├── src/anwendungshinweise/
+│   │   ├── api.py             # HTTP-Router (query/documents/ingestion-jobs/retrieve)
+│   │   ├── ingest.py          # S3-Trigger → Ingestion-Job
+│   │   └── knowledge_base.py  # Bedrock-/S3-Fachlogik + Grounding-Prompt
+│   └── tests/
+├── frontend/                  # Vue-3-Demo (Vite)
+│   └── src/{App.vue,api.js}
+├── docs/architecture.md
+├── sample-docs/               # (leer) Ablage für lokale Test-PDFs
+└── Makefile
+```
+
+## Voraussetzungen
+
+- **Python ≥ 3.11**, **Node ≥ 20**, **npm**
+- **AWS CLI** konfiguriert mit einem Profil/Konto für **eu-central-1**
+- In der Bedrock-Konsole (eu-central-1) **Modellzugriff freischalten** für:
+  - `Amazon Titan Text Embeddings V2`
+  - `Anthropic Claude 3.5 Sonnet` (bzw. das in `cdk.json` gewählte Modell)
+- **Docker wird nicht benötigt** – die Lambdas nutzen ausschließlich das im
+  Runtime enthaltene `boto3`.
+
+> **Hinweis zu S3 Vectors:** Der Vektorspeicher „Amazon S3 Vectors“ ist in
+> Frankfurt (eu-central-1) verfügbar. Sollte er in einem Konto (noch) nicht
+> nutzbar sein, kann in `cdk.json` auf einen anderen Vektorspeicher gewechselt
+> werden – die Anwendungslogik bleibt gleich.
+
+## Loslegen
+
+```bash
+# 1) Abhängigkeiten installieren (Python-venv + Frontend)
+make install
+
+# 2) Tests ausführen
+make test
+
+# 3) Einmalig: CDK-Bootstrap für Konto/Region
+make bootstrap
+
+# 4) Frontend bauen + kompletten Stack deployen
+make deploy
+```
+
+Nach dem Deploy zeigt die CLI u. a. diese **Outputs**:
+
+- `ApiUrl` – Basis-URL der REST-API
+- `FrontendUrl` – öffentliche CloudFront-URL der Demo
+- `DocumentsBucketName` – S3-Bucket für die PDFs
+- `KnowledgeBaseId` / `DataSourceId`
+
+## Dokumente hinzufügen
+
+PDFs in den Bucket (unter dem Prefix `documents/`) hochladen – die Indizierung
+startet automatisch:
+
+```bash
+aws s3 cp mein-merkblatt.pdf \
+  s3://<DocumentsBucketName>/documents/ --region eu-central-1
+```
+
+Fortschritt prüfen: `GET <ApiUrl>ingestion-jobs` oder im Frontend unter
+**„Wissensbasis“**.
+
+## API
+
+Alle Endpunkte sind CORS-fähig. Basis-URL = Stack-Output `ApiUrl` (endet auf `/prod/`).
+
+| Methode & Pfad | Zweck |
+|---|---|
+| `POST /query` | Frage beantworten. Body: `{"question": "...", "sessionId": "optional"}` |
+| `GET /documents` | Im Bucket abgelegte Quelldokumente auflisten |
+| `GET /ingestion-jobs` | Status/Statistik der Indizierungs-Läufe |
+| `GET /retrieve?q=...` | Debug: rohe Vektortreffer inkl. Score (ohne Generierung) |
+| `GET /health` | Health-Check |
+
+Beispiel:
+
+```bash
+curl -s -X POST "<ApiUrl>query" \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"Muss ich eine neue Kalksandsteinfassade vor dem Verkleben der Dämmung grundieren?"}' | jq
+```
+
+Antwortformat:
+
+```json
+{
+  "answer": "…",
+  "sessionId": "…",
+  "sources": [{"uri": "s3://…/bfs-merkblatt.pdf", "document": "bfs-merkblatt.pdf"}],
+  "citations": [{"document": "…", "snippet": "…", "uri": "s3://…"}]
+}
+```
+
+## Frontend lokal entwickeln
+
+```bash
+cd frontend
+cp .env.example .env      # VITE_API_BASE_URL = ApiUrl aus dem Deploy eintragen
+npm run dev               # http://localhost:5173
+```
+
+Im Deployment wird die API-URL automatisch über eine `config.json` im
+S3-Bucket bereitgestellt – lokal übersteuert `VITE_API_BASE_URL`.
+
+## Konfiguration
+
+Zentrale Parameter stehen im CDK-Context (`infra/cdk.json`) und lassen sich per
+`-c key=value` überschreiben:
+
+| Schlüssel | Default | Bedeutung |
+|---|---|---|
+| `region` | `eu-central-1` | AWS-Region |
+| `documentsPrefix` | `documents/` | S3-Prefix der Quelldateien |
+| `embeddingModelId` | `amazon.titan-embed-text-v2:0` | Embedding-Modell |
+| `embeddingDimensions` | `1024` | Vektordimension (muss zum Modell passen) |
+| `generationModelId` | `eu.anthropic.claude-3-5-sonnet-20240620-v1:0` | Generierungsmodell (EU Inference Profile) |
+| `maxResults` | `8` | Anzahl der abgerufenen Passagen |
+| `chunkMaxTokens` / `chunkOverlapPercentage` | `300` / `20` | Chunking |
+
+## Tests & Qualität
+
+```bash
+make test           # Backend- + Infra-Tests
+make lint           # Ruff
+make synth          # CloudFormation-Template erzeugen
+```
+
+Die CI (`.github/workflows/ci.yml`) führt Backend-Tests, Infra-Tests inkl.
+`cdk synth` und den Frontend-Build aus.
+
+## Aufräumen
+
+```bash
+make destroy
+```
+
+> Der S3-Vectors-Bucket lässt sich nur löschen, wenn er leer ist. Sollte
+> `destroy` daran scheitern, zuvor die Knowledge Base / Datenquelle abbauen
+> lassen (die Datenquelle hat `DataDeletionPolicy = DELETE`) bzw. die Vektoren
+> manuell entfernen.
+
+## Kosten (grobe Einordnung)
+
+S3 Vectors verursacht **keine** dauerhaften Kapazitätskosten (im Gegensatz zu
+OpenSearch Serverless). Relevant sind vor allem Bedrock-Aufrufe (Embeddings beim
+Indizieren + Generierung pro Frage) sowie geringe S3-/CloudFront-Kosten. Für
+eine Demo mit wenigen Dokumenten und Anfragen bleibt das im niedrigen Bereich.

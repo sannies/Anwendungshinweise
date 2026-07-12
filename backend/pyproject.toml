@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "anwendungshinweise-backend"
+version = "0.1.0"
+description = "Lambda-Handler für die Anwendungshinweise-Wissensbasis (Bedrock + S3 Vectors)"
+requires-python = ">=3.11"
+# Zur Laufzeit stellt AWS Lambda boto3/botocore bereit – daher keine
+# Laufzeit-Dependencies im Deployment-Paket nötig.
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "boto3>=1.35",
+    "botocore>=1.35",
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

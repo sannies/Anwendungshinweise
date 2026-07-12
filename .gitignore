@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+.venv-*/
+env/
+
+# AWS CDK
+infra/cdk.out/
+cdk.out/
+cdk.context.json
+.cdk.staging/
+
+# Node / Frontend
+node_modules/
+dist/
+
+# Umgebung / Secrets
+.env
+.env.local
+*.local
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

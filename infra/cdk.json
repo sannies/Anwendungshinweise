@@ -1,0 +1,36 @@
+{
+  "app": "python3 app.py",
+  "watch": {
+    "include": ["**"],
+    "exclude": [
+      "README.md",
+      "cdk*.json",
+      "requirements*.txt",
+      "*.pyc",
+      "**/__pycache__",
+      "cdk.out"
+    ]
+  },
+  "context": {
+    "resourcePrefix": "anwendungshinweise",
+    "region": "eu-central-1",
+    "documentsPrefix": "documents/",
+    "embeddingModelId": "amazon.titan-embed-text-v2:0",
+    "embeddingDimensions": 1024,
+    "generationModelId": "eu.anthropic.claude-3-5-sonnet-20240620-v1:0",
+    "maxResults": 8,
+    "chunkMaxTokens": 300,
+    "chunkOverlapPercentage": 20,
+    "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
+    "@aws-cdk/core:checkSecretUsage": true,
+    "@aws-cdk/core:target-partitions": ["aws", "aws-cn"],
+    "@aws-cdk/aws-iam:minimizePolicies": true,
+    "@aws-cdk/core:validateSnapshotRemovalPolicy": true,
+    "@aws-cdk/aws-s3:createDefaultLoggingPolicy": true,
+    "@aws-cdk/aws-s3:serverAccessLogsUseBucketPolicy": true,
+    "@aws-cdk/core:enablePartitionLiterals": true,
+    "@aws-cdk/aws-ecs-patterns:removeDefaultDesiredCount": true,
+    "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021": true,
+    "@aws-cdk/core:newStyleStackSynthesis": true
+  }
+}
