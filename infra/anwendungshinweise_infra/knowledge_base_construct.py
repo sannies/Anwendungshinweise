@@ -53,8 +53,10 @@ class KnowledgeBase(Construct):
             ),
         )
 
+        # Region aus dem tatsächlichen Stack ableiten, damit die Modell-ARN
+        # garantiert zur Deploy-Region passt (sonst "different region"-Fehler).
         embedding_model_arn = (
-            f"arn:{Aws.PARTITION}:bedrock:{config.region}::"
+            f"arn:{Aws.PARTITION}:bedrock:{stack.region}::"
             f"foundation-model/{config.embedding_model_id}"
         )
 

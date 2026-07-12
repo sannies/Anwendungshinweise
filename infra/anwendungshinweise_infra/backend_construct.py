@@ -33,8 +33,9 @@ class Backend(Construct):
 
         # ARN des Generierungsmodells (Foundation-Model wie Mistral oder ein
         # Cross-Region-Inference-Profile wie Claude) – automatisch abgeleitet.
+        # Region aus dem Stack (nicht config), damit sie zur Deploy-Region passt.
         generation_model_arn = bedrock_model_arn(
-            Aws.PARTITION, config.region, stack.account, config.generation_model_id
+            Aws.PARTITION, stack.region, stack.account, config.generation_model_id
         )
 
         common_env = {

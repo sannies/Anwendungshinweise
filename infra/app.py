@@ -17,10 +17,13 @@ AnwendungshinweiseStack(
     app,
     "AnwendungshinweiseStack",
     config=config,
-    # Region fest auf Frankfurt; Account aus der CLI-Umgebung.
+    # Region kommt aus dem Context (Default: eu-central-1) und ist damit
+    # deterministisch – NICHT aus CDK_DEFAULT_REGION, das je nach lokalem
+    # AWS-Profil abweichen und den Stack in die falsche Region deployen würde.
+    # Account weiterhin aus der CLI-Umgebung.
     env=cdk.Environment(
         account=os.environ.get("CDK_DEFAULT_ACCOUNT"),
-        region=os.environ.get("CDK_DEFAULT_REGION", config.region),
+        region=config.region,
     ),
     description=(
         "Anwendungshinweise-Wissensbasis: Bedrock Knowledge Base + S3 Vectors "

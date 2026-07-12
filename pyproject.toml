@@ -79,17 +79,22 @@ help = "Frontend für die Auslieferung bauen (nach frontend/dist)"
 shell = 'cd infra && npx --yes aws-cdk@2 synth --app "$VIRTUAL_ENV/bin/python app.py"'
 help = "CloudFormation-Template synthetisieren"
 
+# Frankfurt festnageln: AWS_REGION sorgt dafür, dass Bootstrap/Deploy in
+# eu-central-1 landen – unabhängig von der lokalen AWS-Profil-Region.
 [tool.poe.tasks.bootstrap]
 shell = 'cd infra && npx --yes aws-cdk@2 bootstrap --app "$VIRTUAL_ENV/bin/python app.py"'
-help = "CDK-Bootstrap für Konto/Region (einmalig)"
+env = { AWS_REGION = "eu-central-1", AWS_DEFAULT_REGION = "eu-central-1" }
+help = "CDK-Bootstrap für Konto/Region (einmalig, eu-central-1)"
 
 [tool.poe.tasks.deploy]
 shell = 'cd infra && npx --yes aws-cdk@2 deploy --app "$VIRTUAL_ENV/bin/python app.py" --require-approval never'
+env = { AWS_REGION = "eu-central-1", AWS_DEFAULT_REGION = "eu-central-1" }
 deps = ["build-frontend"]
 help = "Frontend bauen und den kompletten Stack deployen"
 
 [tool.poe.tasks.destroy]
 shell = 'cd infra && npx --yes aws-cdk@2 destroy --app "$VIRTUAL_ENV/bin/python app.py" --force'
+env = { AWS_REGION = "eu-central-1", AWS_DEFAULT_REGION = "eu-central-1" }
 help = "Stack wieder abbauen"
 
 [tool.poe.tasks.demo]
