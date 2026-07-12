@@ -6,6 +6,7 @@ import {
   listIngestionJobs,
   debugRetrieve,
 } from './api.js'
+import PdfViewer from './components/PdfViewer.vue'
 
 const EXAMPLES = [
   'Ich habe eine neue Kalksandsteinfassade ohne Wärmedämmung und möchte die Dämmung verkleben. Muss ich die Fassade vorher grundieren?',
@@ -13,6 +14,18 @@ const EXAMPLES = [
 ]
 
 const tab = ref('frage')
+
+// Eingebetteter PDF-Viewer (Zitat-Hervorhebung)
+const viewer = ref(null)
+function openViewer(item) {
+  if (!item || !item.pdfUrl) return
+  viewer.value = {
+    pdfUrl: item.pdfUrl,
+    page: item.page || 1,
+    quote: item.snippet || '',
+    document: item.document || '',
+  }
+}
 
 // --- Frage stellen ---------------------------------------------------------
 const question = ref('')
@@ -99,226 +112,297 @@ onMounted(loadKnowledgeBase)
 </script>
 
 <template>
-  <div class="wrap">
-    <header>
-      <h1>Anwendungshinweise-Wissensbasis</h1>
-      <p class="subtitle">
-        Fachfragen zum Maler- und Lackiererhandwerk – beantwortet
-        <strong>ausschließlich</strong> aus den hinterlegten Merkblättern (Demo).
-      </p>
+  <div class="app">
+    <header class="site-header">
+      <div class="topbar">
+        <div class="container">Wissensdatenbank · Maler- und Lackiererhandwerk</div>
+      </div>
+      <div class="brandbar">
+        <div class="container brand-inner">
+          <div class="logo">
+            <span class="logo-mark">MV</span>
+            <span class="logo-words">
+              <strong>Anwendungshinweise</strong>
+              <small>Merkblätter-Wissensbasis (Demo)</small>
+            </span>
+          </div>
+          <nav class="tabs">
+            <button :class="{ active: tab === 'frage' }" @click="tab = 'frage'">
+              Frage stellen
+            </button>
+            <button
+              :class="{ active: tab === 'wissen' }"
+              @click="tab = 'wissen'; loadKnowledgeBase()"
+            >
+              Wissensbasis
+            </button>
+            <button :class="{ active: tab === 'debug' }" @click="tab = 'debug'">
+              Debug
+            </button>
+          </nav>
+        </div>
+      </div>
     </header>
 
-    <nav class="tabs">
-      <button :class="{ active: tab === 'frage' }" @click="tab = 'frage'">
-        Frage stellen
-      </button>
-      <button
-        :class="{ active: tab === 'wissen' }"
-        @click="tab = 'wissen'; loadKnowledgeBase()"
-      >
-        Wissensbasis
-      </button>
-      <button :class="{ active: tab === 'debug' }" @click="tab = 'debug'">
-        Debug
-      </button>
-    </nav>
+    <main class="container content">
+      <!-- ===================== FRAGE ===================== -->
+      <section v-show="tab === 'frage'" class="panel">
+        <h2>Fachfrage stellen</h2>
+        <p class="lead">
+          Antworten kommen <strong>ausschließlich</strong> aus den hinterlegten
+          Anwendungshinweisen – mit wörtlichen Zitaten und Verweis auf Dokument
+          und Seite.
+        </p>
 
-    <!-- ===================== FRAGE ===================== -->
-    <section v-show="tab === 'frage'" class="panel">
-      <form @submit.prevent="submitQuestion">
-        <textarea
-          v-model="question"
-          rows="3"
-          placeholder="z. B. Muss ich eine neue Kalksandsteinfassade vor dem Verkleben der Dämmung grundieren?"
-        ></textarea>
-        <div class="row">
-          <button type="submit" class="primary" :disabled="asking">
-            {{ asking ? 'Suche in den Merkblättern …' : 'Frage beantworten' }}
-          </button>
-          <button
-            v-if="sessionId"
-            type="button"
-            class="ghost"
-            @click="resetSession"
-          >
-            Neues Gespräch
+        <form @submit.prevent="submitQuestion">
+          <textarea
+            v-model="question"
+            rows="3"
+            placeholder="z. B. Muss ich eine neue Kalksandsteinfassade vor dem Verkleben der Dämmung grundieren?"
+          ></textarea>
+          <div class="row">
+            <button type="submit" class="btn-primary" :disabled="asking">
+              {{ asking ? 'Suche in den Merkblättern …' : 'Frage beantworten' }}
+            </button>
+            <button v-if="sessionId" type="button" class="btn-ghost" @click="resetSession">
+              Neues Gespräch
+            </button>
+          </div>
+        </form>
+
+        <div class="examples">
+          <span>Beispiele:</span>
+          <button v-for="ex in EXAMPLES" :key="ex" class="chip" @click="useExample(ex)">
+            {{ ex.slice(0, 58) }}…
           </button>
         </div>
-      </form>
 
-      <div class="examples">
-        <span>Beispiele:</span>
-        <button v-for="ex in EXAMPLES" :key="ex" class="chip" @click="useExample(ex)">
-          {{ ex.slice(0, 60) }}…
-        </button>
-      </div>
+        <p v-if="askError" class="error">{{ askError }}</p>
 
-      <p v-if="askError" class="error">{{ askError }}</p>
+        <div v-if="answer" class="answer">
+          <h3>Antwort</h3>
+          <p class="answer-text">{{ answer.answer }}</p>
 
-      <div v-if="answer" class="answer">
-        <h2>Antwort</h2>
-        <p class="answer-text">{{ answer.answer }}</p>
-
-        <div v-if="answer.sources && answer.sources.length" class="sources">
-          <h3>Relevante Dokumente ({{ answer.sources.length }})</h3>
-          <p class="hint">Links öffnen das PDF direkt an der Fundstelle.</p>
-          <ul>
-            <li v-for="s in answer.sources" :key="s.uri">
-              📄
-              <a v-if="s.link" :href="s.link" target="_blank" rel="noopener">
-                <strong>{{ s.document }}</strong>
-              </a>
-              <strong v-else>{{ s.document }}</strong>
-              <span v-if="s.pages && s.pages.length" class="pages">
-                · Seite {{ s.pages.join(', ') }}
-              </span>
-            </li>
-          </ul>
-        </div>
-
-        <details v-if="answer.citations && answer.citations.length">
-          <summary>Belegstellen anzeigen ({{ answer.citations.length }})</summary>
-          <blockquote v-for="(c, i) in answer.citations" :key="i">
-            <div class="cite-doc">
-              <a v-if="c.link" :href="c.link" target="_blank" rel="noopener">
-                {{ c.document }}<span v-if="c.page"> · Seite {{ c.page }}</span> ↗
-              </a>
-              <template v-else>
-                {{ c.document }}<span v-if="c.page"> · Seite {{ c.page }}</span>
-              </template>
+          <div v-if="answer.citations && answer.citations.length" class="belege">
+            <h4>Belege (wörtliche Zitate)</h4>
+            <p class="hint">Klick auf „Im PDF anzeigen" öffnet die Fundstelle und markiert sie.</p>
+            <div v-for="(c, i) in answer.citations" :key="i" class="beleg">
+              <blockquote>„{{ c.snippet }}"</blockquote>
+              <div class="beleg-foot">
+                <span class="src">{{ c.document }}<template v-if="c.page"> · Seite {{ c.page }}</template></span>
+                <button v-if="c.pdfUrl" class="btn-small" @click="openViewer(c)">
+                  Im PDF anzeigen
+                </button>
+              </div>
             </div>
-            {{ c.snippet }}
-          </blockquote>
-        </details>
-      </div>
-    </section>
+          </div>
 
-    <!-- ===================== WISSENSBASIS ===================== -->
-    <section v-show="tab === 'wissen'" class="panel">
-      <div class="row space">
-        <h2>Indizierte Dokumente</h2>
-        <button class="ghost" @click="loadKnowledgeBase" :disabled="kbLoading">
-          Aktualisieren
-        </button>
-      </div>
-      <p v-if="kbError" class="error">{{ kbError }}</p>
-      <p v-if="kbLoading" class="muted">Lade …</p>
-
-      <table v-if="documents.length">
-        <thead>
-          <tr><th>Dokument</th><th>Größe</th><th>Zuletzt geändert</th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="d in documents" :key="d.key">
-            <td>{{ d.document }}</td>
-            <td>{{ formatBytes(d.size) }}</td>
-            <td>{{ d.lastModified }}</td>
-          </tr>
-        </tbody>
-      </table>
-      <p v-else-if="!kbLoading" class="muted">
-        Noch keine Dokumente. PDFs in den S3-Bucket (Prefix <code>documents/</code>)
-        hochladen – die Indizierung startet automatisch.
-      </p>
-
-      <h2 class="mt">Indizierungs-Läufe</h2>
-      <table v-if="jobs.length">
-        <thead>
-          <tr><th>Status</th><th>Neu indiziert</th><th>Gestartet</th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="j in jobs" :key="j.ingestionJobId">
-            <td>
-              <span class="badge" :data-status="j.status">{{ j.status }}</span>
-            </td>
-            <td>{{ j.statistics?.numberOfNewDocumentsIndexed ?? '–' }}</td>
-            <td>{{ j.startedAt }}</td>
-          </tr>
-        </tbody>
-      </table>
-      <p v-else-if="!kbLoading" class="muted">Noch keine Läufe.</p>
-    </section>
-
-    <!-- ===================== DEBUG ===================== -->
-    <section v-show="tab === 'debug'" class="panel">
-      <h2>Retrieval-Debug</h2>
-      <p class="muted">
-        Zeigt die rohen Treffer aus der Vektorsuche (mit Score) – ohne Generierung.
-        Nützlich, um zu sehen, welche Passagen gefunden werden.
-      </p>
-      <form @submit.prevent="runDebug" class="row">
-        <input v-model="debugQuery" placeholder="Suchbegriff / Frage …" />
-        <button type="submit" class="primary" :disabled="debugLoading">Suchen</button>
-      </form>
-
-      <div v-for="(r, i) in debugResults" :key="i" class="hit">
-        <div class="row space">
-          <strong>
-            <a v-if="r.link" :href="r.link" target="_blank" rel="noopener">
-              {{ r.document }}<span v-if="r.page"> · S. {{ r.page }}</span> ↗
-            </a>
-            <template v-else>{{ r.document }}</template>
-          </strong>
-          <span class="score">Score: {{ r.score?.toFixed(3) }}</span>
+          <div v-if="answer.sources && answer.sources.length" class="sources">
+            <h4>Verwendete Dokumente</h4>
+            <ul>
+              <li v-for="s in answer.sources" :key="s.uri">
+                📄
+                <a v-if="s.link" :href="s.link" target="_blank" rel="noopener">{{ s.document }}</a>
+                <span v-else>{{ s.document }}</span>
+                <span v-if="s.pages && s.pages.length" class="pages">
+                  · Seite {{ s.pages.join(', ') }}
+                </span>
+              </li>
+            </ul>
+          </div>
         </div>
-        <p>{{ r.snippet }}</p>
-      </div>
-    </section>
+      </section>
 
-    <footer>
-      Demo · Amazon Bedrock Knowledge Base + S3 Vectors · Region eu-central-1
+      <!-- ===================== WISSENSBASIS ===================== -->
+      <section v-show="tab === 'wissen'" class="panel">
+        <div class="row space">
+          <h2>Indizierte Dokumente</h2>
+          <button class="btn-ghost" @click="loadKnowledgeBase" :disabled="kbLoading">
+            Aktualisieren
+          </button>
+        </div>
+        <p v-if="kbError" class="error">{{ kbError }}</p>
+        <p v-if="kbLoading" class="muted">Lade …</p>
+
+        <table v-if="documents.length">
+          <thead>
+            <tr><th>Dokument</th><th>Größe</th><th>Zuletzt geändert</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="d in documents" :key="d.key">
+              <td>{{ d.document }}</td>
+              <td>{{ formatBytes(d.size) }}</td>
+              <td>{{ d.lastModified }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else-if="!kbLoading" class="muted">
+          Noch keine Dokumente. PDFs in den S3-Bucket (Prefix <code>documents/</code>)
+          hochladen – die Indizierung startet automatisch.
+        </p>
+
+        <h2 class="mt">Indizierungs-Läufe</h2>
+        <table v-if="jobs.length">
+          <thead>
+            <tr><th>Status</th><th>Neu indiziert</th><th>Gestartet</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="j in jobs" :key="j.ingestionJobId">
+              <td><span class="badge" :data-status="j.status">{{ j.status }}</span></td>
+              <td>{{ j.statistics?.numberOfNewDocumentsIndexed ?? '–' }}</td>
+              <td>{{ j.startedAt }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else-if="!kbLoading" class="muted">Noch keine Läufe.</p>
+      </section>
+
+      <!-- ===================== DEBUG ===================== -->
+      <section v-show="tab === 'debug'" class="panel">
+        <h2>Retrieval-Debug</h2>
+        <p class="muted">
+          Rohe Treffer der Vektorsuche (mit Score), ohne Generierung – zeigt,
+          welche Passagen gefunden werden.
+        </p>
+        <form @submit.prevent="runDebug" class="row">
+          <input v-model="debugQuery" placeholder="Suchbegriff / Frage …" />
+          <button type="submit" class="btn-primary" :disabled="debugLoading">Suchen</button>
+        </form>
+
+        <div v-for="(r, i) in debugResults" :key="i" class="hit">
+          <div class="row space">
+            <strong>{{ r.document }}<template v-if="r.page"> · S. {{ r.page }}</template></strong>
+            <span class="hit-right">
+              <span class="score">Score: {{ r.score?.toFixed(3) }}</span>
+              <button v-if="r.pdfUrl" class="btn-small" @click="openViewer(r)">Im PDF</button>
+            </span>
+          </div>
+          <p>{{ r.snippet }}</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        Demo · Amazon Bedrock Knowledge Base + S3 Vectors · Region eu-central-1
+      </div>
     </footer>
+
+    <PdfViewer v-if="viewer" v-bind="viewer" @close="viewer = null" />
   </div>
 </template>
 
 <style scoped>
-.wrap {
-  max-width: 820px;
+.container {
+  max-width: 960px;
   margin: 0 auto;
-  padding: 1.5rem 1rem 3rem;
+  padding: 0 1rem;
 }
-header h1 {
-  margin: 0 0 0.25rem;
-  font-size: 1.6rem;
+
+/* Header */
+.topbar {
+  background: var(--brand-dark);
+  color: #cfe0ef;
+  font-size: 0.8rem;
 }
-.subtitle {
-  margin: 0;
-  color: var(--muted);
+.topbar .container {
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+.brandbar {
+  background: var(--brand);
+  color: #fff;
+}
+.brand-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-top: 0.6rem;
+  padding-bottom: 0.6rem;
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.logo-mark {
+  background: #fff;
+  color: var(--brand);
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 0.3rem 0.5rem;
+  border-radius: var(--radius);
+  font-size: 1.1rem;
+}
+.logo-words {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+.logo-words strong {
+  font-size: 1.15rem;
+}
+.logo-words small {
+  font-size: 0.72rem;
+  color: #cfe0ef;
 }
 .tabs {
   display: flex;
-  gap: 0.5rem;
-  margin: 1.25rem 0 1rem;
-  border-bottom: 1px solid var(--border);
+  gap: 0.25rem;
 }
 .tabs button {
-  background: none;
+  background: rgba(255, 255, 255, 0.12);
   border: none;
-  padding: 0.6rem 0.9rem;
-  color: var(--muted);
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
+  color: #fff;
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
 }
 .tabs button.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-  font-weight: 600;
+  background: #fff;
+  color: var(--brand-dark);
+  font-weight: 700;
 }
+
+.content {
+  padding-top: 1.25rem;
+  padding-bottom: 2rem;
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 1.25rem;
+  border-top: 3px solid var(--brand);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.4rem;
 }
+.panel h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  color: var(--brand-dark);
+}
+.lead {
+  margin: 0 0 1rem;
+  color: var(--muted);
+}
+
 textarea,
 input {
   width: 100%;
   padding: 0.7rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   font: inherit;
   resize: vertical;
 }
+textarea:focus,
+input:focus {
+  outline: 2px solid var(--brand-light);
+  border-color: var(--brand);
+}
+
 .row {
   display: flex;
   gap: 0.6rem;
@@ -328,24 +412,44 @@ input {
 .row.space {
   justify-content: space-between;
 }
-button.primary {
-  background: var(--accent);
+
+.btn-primary {
+  background: var(--brand);
   color: #fff;
   border: none;
-  padding: 0.6rem 1.1rem;
-  border-radius: 8px;
+  padding: 0.6rem 1.2rem;
+  border-radius: var(--radius);
+  font-weight: 600;
 }
-button.primary:disabled {
+.btn-primary:hover {
+  background: var(--brand-dark);
+}
+.btn-primary:disabled {
   opacity: 0.6;
   cursor: default;
 }
-button.ghost {
+.btn-ghost {
   background: none;
   border: 1px solid var(--border);
   padding: 0.5rem 0.9rem;
-  border-radius: 8px;
+  border-radius: var(--radius);
   color: var(--muted);
 }
+.btn-small {
+  background: var(--brand-light);
+  border: 1px solid var(--brand);
+  color: var(--brand-dark);
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  font-weight: 600;
+  flex: none;
+}
+.btn-small:hover {
+  background: var(--brand);
+  color: #fff;
+}
+
 .examples {
   margin-top: 1rem;
   display: flex;
@@ -356,59 +460,81 @@ button.ghost {
   font-size: 0.9rem;
 }
 .chip {
-  background: var(--accent-soft);
-  border: none;
-  color: var(--accent);
+  background: var(--brand-light);
+  border: 1px solid var(--border);
+  color: var(--brand-dark);
   padding: 0.35rem 0.6rem;
   border-radius: 999px;
   font-size: 0.8rem;
 }
+
 .answer {
   margin-top: 1.25rem;
   border-top: 1px solid var(--border);
   padding-top: 1rem;
 }
+.answer h3 {
+  margin: 0 0 0.5rem;
+  color: var(--brand-dark);
+}
 .answer-text {
   white-space: pre-wrap;
-  line-height: 1.55;
+  line-height: 1.6;
+}
+
+.belege {
+  margin-top: 1.25rem;
+}
+.belege h4,
+.sources h4 {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+}
+.hint {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 0 0 0.6rem;
+}
+.beleg {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--brand);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.6rem;
+  background: #fafcfe;
+}
+.beleg blockquote {
+  margin: 0 0 0.5rem;
+  font-size: 0.92rem;
+  color: #2b3742;
+}
+.beleg-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+}
+.beleg-foot .src {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.sources {
+  margin-top: 1.25rem;
 }
 .sources ul {
-  margin: 0.25rem 0 0;
+  margin: 0;
   padding-left: 0;
   list-style: none;
 }
 .sources li {
   padding: 0.15rem 0;
 }
-blockquote {
-  margin: 0.6rem 0;
-  padding: 0.5rem 0.8rem;
-  background: var(--bg);
-  border-left: 3px solid var(--border);
-  border-radius: 4px;
-  font-size: 0.9rem;
-}
-.cite-doc {
-  font-size: 0.75rem;
-  color: var(--muted);
-  margin-bottom: 0.25rem;
-}
-.hint {
-  color: var(--muted);
-  font-size: 0.8rem;
-  margin: 0.15rem 0 0.4rem;
-}
 .pages {
   color: var(--muted);
   font-size: 0.85rem;
 }
-a {
-  color: var(--accent);
-  text-decoration: none;
-}
-a:hover {
-  text-decoration: underline;
-}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -418,19 +544,20 @@ table {
 th,
 td {
   text-align: left;
-  padding: 0.45rem 0.5rem;
+  padding: 0.5rem;
   border-bottom: 1px solid var(--border);
 }
 th {
   color: var(--muted);
-  font-weight: 600;
+  font-weight: 700;
+  background: #f6f8fa;
 }
 .badge {
   padding: 0.15rem 0.5rem;
-  border-radius: 999px;
+  border-radius: var(--radius);
   font-size: 0.75rem;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--brand-light);
+  color: var(--brand-dark);
 }
 .badge[data-status='COMPLETE'] {
   background: #e6f4ea;
@@ -438,23 +565,29 @@ th {
 }
 .badge[data-status='FAILED'] {
   background: #fde8e8;
-  color: #b42318;
+  color: var(--danger);
 }
+
 .hit {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 0.7rem 0.9rem;
   margin-top: 0.7rem;
 }
 .hit p {
   margin: 0.4rem 0 0;
   font-size: 0.9rem;
-  line-height: 1.45;
+}
+.hit-right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
 }
 .score {
   color: var(--muted);
   font-size: 0.8rem;
 }
+
 .muted {
   color: var(--muted);
 }
@@ -462,15 +595,18 @@ th {
   margin-top: 1.5rem;
 }
 .error {
-  color: #b42318;
+  color: var(--danger);
   background: #fde8e8;
   padding: 0.6rem 0.8rem;
-  border-radius: 8px;
+  border-radius: var(--radius);
+  margin-top: 0.75rem;
 }
-footer {
-  text-align: center;
+
+.site-footer {
+  border-top: 1px solid var(--border);
   color: var(--muted);
   font-size: 0.8rem;
-  margin-top: 1.5rem;
+  padding: 1rem 0;
+  text-align: center;
 }
 </style>

@@ -1,14 +1,21 @@
+/* Theme in Anlehnung an den Malerverband Niedersachsen (Bundesverband Farbe):
+   seriöse Blau/Weiß-Optik, schlichte eckige Panels, Arial/Helvetica.
+   Der Markenwert lässt sich zentral über --brand anpassen. */
 :root {
-  --bg: #f4f5f7;
+  --brand: #0069b4;        /* Verbandsblau (Näherung – zentral anpassbar) */
+  --brand-dark: #004f8a;
+  --brand-light: #e6f0f8;
+  --ink: #222b33;
+  --muted: #5f6b76;
+  --bg: #eef1f4;
   --panel: #ffffff;
-  --border: #e2e5ea;
-  --text: #1c2430;
-  --muted: #66707d;
-  --accent: #1f6feb;
-  --accent-soft: #e7f0fd;
+  --border: #d7dde3;
   --ok: #1a7f37;
   --warn: #9a6700;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --danger: #b42318;
+  --mark: #ffd83d;         /* PDF-Hervorhebung */
+  --radius: 4px;
+  font-family: Arial, Helvetica, "Segoe UI", Roboto, sans-serif;
 }
 
 * {
@@ -18,12 +25,21 @@
 body {
   margin: 0;
   background: var(--bg);
-  color: var(--text);
+  color: var(--ink);
+  line-height: 1.5;
 }
 
 button {
   font: inherit;
   cursor: pointer;
+}
+
+a {
+  color: var(--brand-dark);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
 }
 
 code {

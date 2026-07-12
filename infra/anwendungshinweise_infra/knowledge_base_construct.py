@@ -35,6 +35,17 @@ class KnowledgeBase(Construct):
             versioned=True,
             removal_policy=RemovalPolicy.DESTROY,
             auto_delete_objects=True,
+            # CORS erlaubt dem Browser (PDF.js im Frontend), die PDF-Bytes über
+            # die präsignierte URL zu laden und Zitate hervorzuheben.
+            cors=[
+                s3.CorsRule(
+                    allowed_methods=[s3.HttpMethods.GET, s3.HttpMethods.HEAD],
+                    allowed_origins=["*"],
+                    allowed_headers=["*"],
+                    exposed_headers=["Content-Length", "Content-Range", "Accept-Ranges"],
+                    max_age=3000,
+                )
+            ],
         )
 
         # --- 2) S3-Vectors-Speicher (günstiger Vektorstore) ------------------
@@ -139,11 +150,14 @@ class KnowledgeBase(Construct):
                 ),
             ),
             vector_ingestion_configuration=bedrock.CfnDataSource.VectorIngestionConfigurationProperty(
+                # SEMANTIC-Chunking trennt an inhaltlichen Grenzen (näher an
+                # Absätzen als feste Token-Fenster) -> präzisere Fundstellen.
                 chunking_configuration=bedrock.CfnDataSource.ChunkingConfigurationProperty(
-                    chunking_strategy="FIXED_SIZE",
-                    fixed_size_chunking_configuration=bedrock.CfnDataSource.FixedSizeChunkingConfigurationProperty(
+                    chunking_strategy="SEMANTIC",
+                    semantic_chunking_configuration=bedrock.CfnDataSource.SemanticChunkingConfigurationProperty(
+                        breakpoint_percentile_threshold=95,
+                        buffer_size=0,
                         max_tokens=config.chunk_max_tokens,
-                        overlap_percentage=config.chunk_overlap_percentage,
                     ),
                 ),
             ),

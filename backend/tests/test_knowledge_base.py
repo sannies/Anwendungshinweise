@@ -87,6 +87,8 @@ def test_retrieve_and_generate_shapes_output(fake_clients):
     assert cite["document"] == "bfs-merkblatt-10.pdf"
     assert cite["page"] == 3
     assert cite["link"].endswith("#page=3")
+    # Basis-URL (für den eingebetteten PDF.js-Viewer) ohne Seiten-Fragment.
+    assert cite["pdfUrl"] and "#page=" not in cite["pdfUrl"]
 
 
 def test_sources_aggregate_pages_and_link(fake_clients):

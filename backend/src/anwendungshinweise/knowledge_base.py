@@ -33,6 +33,8 @@ Regeln:
 "Dazu finde ich in den vorliegenden Anwendungshinweisen keine ausreichende Angabe."
 - Antworte auf Deutsch, fachlich präzise und in ganzen Sätzen.
 - Nenne die relevanten Arbeitsschritte, Bedingungen und Voraussetzungen konkret.
+- Belege zentrale Aussagen mit einem KURZEN wörtlichen Zitat aus den \
+Suchergebnissen in doppelten Anführungszeichen.
 - Erfinde keine Normen, Kennzahlen, Fristen oder Produktnamen, die nicht in den \
 Suchergebnissen stehen.
 
@@ -77,37 +79,39 @@ def _extract_page(metadata: dict | None) -> int | None:
         return None
 
 
-def _make_link_builder(cfg: Config):
-    """Erzeugt eine Funktion, die präsignierte PDF-Links (mit #page=N) liefert.
+class _LinkBuilder:
+    """Erzeugt präsignierte PDF-URLs (pro S3-Objekt einmal signiert & gecacht).
 
-    Die Basis-URL wird pro S3-Objekt nur einmal signiert und gecacht; die
-    Seitenangabe wird als URL-Fragment ergänzt (öffnet den PDF-Viewer direkt
-    auf der Seite).
+    - ``base(uri)``           – reine präsignierte URL (für den PDF.js-Viewer)
+    - ``with_page(uri, page)`` – gleiche URL mit ``#page=N``-Fragment
     """
-    client = get_client("s3")
-    cache: dict[str, str] = {}
 
-    def link(uri: str | None, page: int | None = None) -> str | None:
+    def __init__(self, cfg: Config) -> None:
+        self._client = get_client("s3")
+        self._cfg = cfg
+        self._cache: dict[str, str] = {}
+
+    def base(self, uri: str | None) -> str | None:
         parsed = _parse_s3_uri(uri)
         if not parsed:
             return None
-        bucket, key = parsed
-        base = cache.get(uri)
-        if base is None:
+        if uri not in self._cache:
+            bucket, key = parsed
             try:
-                base = client.generate_presigned_url(
+                self._cache[uri] = self._client.generate_presigned_url(
                     "get_object",
                     Params={"Bucket": bucket, "Key": key},
-                    ExpiresIn=cfg.presign_expiry,
+                    ExpiresIn=self._cfg.presign_expiry,
                 )
             except Exception:  # noqa: BLE001 – Link ist optional
-                base = ""
-            cache[uri] = base
+                self._cache[uri] = ""
+        return self._cache[uri] or None
+
+    def with_page(self, uri: str | None, page: int | None = None) -> str | None:
+        base = self.base(uri)
         if not base:
             return None
         return f"{base}#page={page}" if page else base
-
-    return link
 
 
 def retrieve_and_generate(
@@ -141,9 +145,9 @@ def retrieve_and_generate(
 
     response = client.retrieve_and_generate(**request)
 
-    link_for = _make_link_builder(cfg)
-    citations = _flatten_citations(response.get("citations", []), link_for)
-    sources = _aggregate_sources(citations, link_for)
+    links = _LinkBuilder(cfg)
+    citations = _flatten_citations(response.get("citations", []), links)
+    sources = _aggregate_sources(citations, links)
 
     return {
         "answer": response.get("output", {}).get("text", ""),
@@ -153,7 +157,7 @@ def retrieve_and_generate(
     }
 
 
-def _flatten_citations(raw_citations: list[dict], link_for) -> list[dict]:
+def _flatten_citations(raw_citations: list[dict], links: _LinkBuilder) -> list[dict]:
     result: list[dict] = []
     for citation in raw_citations:
         for ref in citation.get("retrievedReferences", []):
@@ -166,14 +170,15 @@ def _flatten_citations(raw_citations: list[dict], link_for) -> list[dict]:
                     "document": _s3_uri_to_name(uri),
                     "page": page,
                     "snippet": ref.get("content", {}).get("text", ""),
-                    "link": link_for(uri, page),
+                    "link": links.with_page(uri, page),
+                    "pdfUrl": links.base(uri),
                     "metadata": metadata,
                 }
             )
     return result
 
 
-def _aggregate_sources(citations: list[dict], link_for) -> list[dict]:
+def _aggregate_sources(citations: list[dict], links: _LinkBuilder) -> list[dict]:
     """Fasst die Fundstellen je PDF zusammen (Seitenliste + Deeplink)."""
     by_uri: dict[str, dict] = {}
     for c in citations:
@@ -195,7 +200,8 @@ def _aggregate_sources(citations: list[dict], link_for) -> list[dict]:
                 "document": entry["document"],
                 "pages": pages,
                 # Deeplink auf die erste relevante Seite.
-                "link": link_for(entry["uri"], pages[0] if pages else None),
+                "link": links.with_page(entry["uri"], pages[0] if pages else None),
+                "pdfUrl": links.base(entry["uri"]),
             }
         )
     return sources
@@ -213,7 +219,7 @@ def retrieve(cfg: Config, query: str, number_of_results: int | None = None) -> l
             }
         },
     )
-    link_for = _make_link_builder(cfg)
+    links = _LinkBuilder(cfg)
     results = []
     for item in response.get("retrievalResults", []):
         uri = item.get("location", {}).get("s3Location", {}).get("uri")
@@ -226,7 +232,8 @@ def retrieve(cfg: Config, query: str, number_of_results: int | None = None) -> l
                 "page": page,
                 "score": item.get("score"),
                 "snippet": item.get("content", {}).get("text", ""),
-                "link": link_for(uri, page),
+                "link": links.with_page(uri, page),
+                "pdfUrl": links.base(uri),
                 "metadata": metadata,
             }
         )

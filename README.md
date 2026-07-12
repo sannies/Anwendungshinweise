@@ -172,6 +172,23 @@ Antwortformat:
   entsprechende *named destinations* enthält – das ist bei Merkblättern selten,
   daher der robuste Weg über Seite + Zitat.
 
+### In-PDF-Hervorhebung (Frontend)
+
+Das Frontend bettet einen **PDF.js-Viewer** ein: Ein Klick auf „Im PDF anzeigen"
+öffnet die Fundstelle, springt auf die Seite und **markiert das wörtlich
+zitierte Textstück** direkt im PDF (Textsuche in der PDF-Textebene). Damit der
+Browser die PDF-Bytes laden darf, ist am Dokumenten-Bucket **CORS** aktiv; das
+Chunking der Knowledge Base ist auf **SEMANTIC** gestellt (Fundstellen näher an
+Absätzen). Findet der Viewer den Zitattext auf der Seite nicht exakt (z. B. durch
+Trennungen), zeigt er die Seite unmarkiert an.
+
+### Design
+
+Die Oberfläche ist optisch an den **Malerverband Niedersachsen** angelehnt
+(seriöse Blau/Weiß-Optik). Der Markenton lässt sich zentral über die
+CSS-Variable `--brand` in `frontend/src/style.css` anpassen; für das echte Logo
+kann der Platzhalter „MV" in `App.vue` ersetzt werden.
+
 ## Frontend lokal entwickeln
 
 ```bash
