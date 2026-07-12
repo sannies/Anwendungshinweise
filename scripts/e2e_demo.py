@@ -110,9 +110,13 @@ def main() -> None:
 
     sources = result.get("sources", [])
     if sources:
-        print("\n📄 Quellen:")
+        print("\n📄 Relevante Dokumente:")
         for s in sources:
-            print(f"   - {s.get('document')}")
+            pages = s.get("pages") or []
+            page_str = f" (Seite {', '.join(map(str, pages))})" if pages else ""
+            print(f"   - {s.get('document')}{page_str}")
+            if s.get("link"):
+                print(f"     {s['link']}")
     else:
         print("\n(keine Quellen – ggf. sind noch keine passenden PDFs indiziert)")
 

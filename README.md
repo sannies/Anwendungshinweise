@@ -133,10 +133,38 @@ Antwortformat:
 {
   "answer": "…",
   "sessionId": "…",
-  "sources": [{"uri": "s3://…/bfs-merkblatt.pdf", "document": "bfs-merkblatt.pdf"}],
-  "citations": [{"document": "…", "snippet": "…", "uri": "s3://…"}]
+  "sources": [
+    {
+      "document": "bfs-merkblatt.pdf",
+      "uri": "s3://…/bfs-merkblatt.pdf",
+      "pages": [3, 5],
+      "link": "https://…/bfs-merkblatt.pdf?X-Amz-…#page=3"
+    }
+  ],
+  "citations": [
+    {
+      "document": "bfs-merkblatt.pdf",
+      "page": 3,
+      "snippet": "…wörtlich zitierte Passage…",
+      "link": "https://…#page=3",
+      "uri": "s3://…"
+    }
+  ]
 }
 ```
+
+### Quellen, Seiten & Deeplinks
+
+- Die Vektorsuche läuft automatisch über **alle** indizierten PDFs; die
+  zurückgegebenen `sources` sind genau die für die Frage **relevanten** PDFs.
+- Jede Fundstelle enthält die **Seitenzahl** (aus dem Bedrock-Metadatum
+  `x-amz-bedrock-kb-document-page-number`) und einen **präsignierten Link**, der
+  das PDF per `#page=N` direkt auf der Seite öffnet (Standard-PDF-Viewer der
+  Browser). Der `snippet` gibt die wörtlich zitierte Passage – so ist der
+  Absatz auf der Seite sofort auffindbar.
+- Absatz-/Überschriften-Anker (`#nameddest=…`) funktionieren nur, wenn das PDF
+  entsprechende *named destinations* enthält – das ist bei Merkblättern selten,
+  daher der robuste Weg über Seite + Zitat.
 
 ## Frontend lokal entwickeln
 

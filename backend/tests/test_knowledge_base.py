@@ -7,6 +7,8 @@ import datetime as dt
 from anwendungshinweise import knowledge_base as kb
 from anwendungshinweise.config import load_config
 
+PAGE_KEY = kb.PAGE_METADATA_KEY
+
 
 class FakeAgentRuntime:
     def __init__(self):
@@ -28,7 +30,7 @@ class FakeAgentRuntime:
                                     "uri": "s3://docs-bucket/documents/bfs-merkblatt-10.pdf"
                                 },
                             },
-                            "metadata": {"page": 3},
+                            "metadata": {PAGE_KEY: 3},
                         }
                     ]
                 }
@@ -43,32 +45,68 @@ class FakeAgentRuntime:
                     "content": {"text": "Loser Putz ist zu entfernen."},
                     "location": {"s3Location": {"uri": "s3://docs-bucket/documents/wdvs.pdf"}},
                     "score": 0.83,
-                    "metadata": {},
+                    "metadata": {PAGE_KEY: "7.0"},
                 }
             ]
         }
 
 
+class FakeS3:
+    """Deckt list_objects_v2 (Paginator) und generate_presigned_url ab."""
+
+    def get_paginator(self, _name):
+        return self
+
+    def paginate(self, **kwargs):
+        yield {
+            "Contents": [
+                {"Key": "documents/", "Size": 0},
+                {
+                    "Key": "documents/bfs-10.pdf",
+                    "Size": 12345,
+                    "LastModified": dt.datetime(2026, 7, 1),
+                },
+            ]
+        }
+
+    def generate_presigned_url(self, _op, Params=None, ExpiresIn=None):  # noqa: N803
+        key = Params["Key"]
+        return f"https://s3.example/{Params['Bucket']}/{key}?sig=abc"
+
+
 def test_retrieve_and_generate_shapes_output(fake_clients):
     fake_clients["bedrock-agent-runtime"] = FakeAgentRuntime()
+    fake_clients["s3"] = FakeS3()
     cfg = load_config()
 
     result = kb.retrieve_and_generate(cfg, "Muss ich grundieren?")
 
     assert result["answer"].startswith("Ja")
     assert result["sessionId"] == "sess-1"
-    assert result["citations"][0]["document"] == "bfs-merkblatt-10.pdf"
-    assert result["sources"] == [
-        {
-            "uri": "s3://docs-bucket/documents/bfs-merkblatt-10.pdf",
-            "document": "bfs-merkblatt-10.pdf",
-        }
-    ]
+    cite = result["citations"][0]
+    assert cite["document"] == "bfs-merkblatt-10.pdf"
+    assert cite["page"] == 3
+    assert cite["link"].endswith("#page=3")
+
+
+def test_sources_aggregate_pages_and_link(fake_clients):
+    fake_clients["bedrock-agent-runtime"] = FakeAgentRuntime()
+    fake_clients["s3"] = FakeS3()
+    cfg = load_config()
+
+    result = kb.retrieve_and_generate(cfg, "Muss ich grundieren?")
+
+    source = result["sources"][0]
+    assert source["document"] == "bfs-merkblatt-10.pdf"
+    assert source["pages"] == [3]
+    assert source["link"].endswith("#page=3")
+    assert source["link"].startswith("https://s3.example/")
 
 
 def test_retrieve_and_generate_passes_grounding_prompt(fake_clients):
     runtime = FakeAgentRuntime()
     fake_clients["bedrock-agent-runtime"] = runtime
+    fake_clients["s3"] = FakeS3()
     cfg = load_config()
 
     kb.retrieve_and_generate(cfg, "Frage?", session_id="abc")
@@ -83,14 +121,24 @@ def test_retrieve_and_generate_passes_grounding_prompt(fake_clients):
     assert req["sessionId"] == "abc"
 
 
-def test_retrieve_returns_scores(fake_clients):
+def test_retrieve_returns_scores_page_and_link(fake_clients):
     fake_clients["bedrock-agent-runtime"] = FakeAgentRuntime()
+    fake_clients["s3"] = FakeS3()
     cfg = load_config()
 
     results = kb.retrieve(cfg, "loser Putz")
 
     assert results[0]["score"] == 0.83
     assert results[0]["document"] == "wdvs.pdf"
+    assert results[0]["page"] == 7  # "7.0" -> 7
+    assert results[0]["link"].endswith("#page=7")
+
+
+def test_extract_page_handles_missing_and_alternate_keys():
+    assert kb._extract_page(None) is None
+    assert kb._extract_page({}) is None
+    assert kb._extract_page({"foo-page-number": 5}) == 5
+    assert kb._extract_page({PAGE_KEY: "not-a-number"}) is None
 
 
 class FakeAgent:
@@ -128,23 +176,6 @@ def test_start_ingestion_job(fake_clients):
     result = kb.start_ingestion_job(cfg, description="test")
 
     assert result == {"ingestionJobId": "job-2", "status": "STARTING"}
-
-
-class FakeS3:
-    def get_paginator(self, _name):
-        return self
-
-    def paginate(self, **kwargs):
-        yield {
-            "Contents": [
-                {"Key": "documents/", "Size": 0},
-                {
-                    "Key": "documents/bfs-10.pdf",
-                    "Size": 12345,
-                    "LastModified": dt.datetime(2026, 7, 1),
-                },
-            ]
-        }
 
 
 def test_list_documents_skips_folder_placeholder(fake_clients):

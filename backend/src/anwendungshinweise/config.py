@@ -31,6 +31,8 @@ class Config:
     generation_model_arn: str
     region: str
     max_results: int
+    # Gültigkeitsdauer der präsignierten PDF-Links (Sekunden).
+    presign_expiry: int
 
 
 def load_config() -> Config:
@@ -43,4 +45,5 @@ def load_config() -> Config:
         generation_model_arn=_require("GENERATION_MODEL_ARN"),
         region=os.environ.get("AWS_REGION", "eu-central-1"),
         max_results=int(os.environ.get("MAX_RESULTS", "8")),
+        presign_expiry=int(os.environ.get("PRESIGN_EXPIRY", "3600")),
     )

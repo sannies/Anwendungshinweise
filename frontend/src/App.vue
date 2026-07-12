@@ -160,10 +160,18 @@ onMounted(loadKnowledgeBase)
         <p class="answer-text">{{ answer.answer }}</p>
 
         <div v-if="answer.sources && answer.sources.length" class="sources">
-          <h3>Quellen ({{ answer.sources.length }})</h3>
+          <h3>Relevante Dokumente ({{ answer.sources.length }})</h3>
+          <p class="hint">Links öffnen das PDF direkt an der Fundstelle.</p>
           <ul>
             <li v-for="s in answer.sources" :key="s.uri">
-              📄 <strong>{{ s.document }}</strong>
+              📄
+              <a v-if="s.link" :href="s.link" target="_blank" rel="noopener">
+                <strong>{{ s.document }}</strong>
+              </a>
+              <strong v-else>{{ s.document }}</strong>
+              <span v-if="s.pages && s.pages.length" class="pages">
+                · Seite {{ s.pages.join(', ') }}
+              </span>
             </li>
           </ul>
         </div>
@@ -171,7 +179,14 @@ onMounted(loadKnowledgeBase)
         <details v-if="answer.citations && answer.citations.length">
           <summary>Belegstellen anzeigen ({{ answer.citations.length }})</summary>
           <blockquote v-for="(c, i) in answer.citations" :key="i">
-            <div class="cite-doc">{{ c.document }}</div>
+            <div class="cite-doc">
+              <a v-if="c.link" :href="c.link" target="_blank" rel="noopener">
+                {{ c.document }}<span v-if="c.page"> · Seite {{ c.page }}</span> ↗
+              </a>
+              <template v-else>
+                {{ c.document }}<span v-if="c.page"> · Seite {{ c.page }}</span>
+              </template>
+            </div>
             {{ c.snippet }}
           </blockquote>
         </details>
@@ -238,7 +253,12 @@ onMounted(loadKnowledgeBase)
 
       <div v-for="(r, i) in debugResults" :key="i" class="hit">
         <div class="row space">
-          <strong>{{ r.document }}</strong>
+          <strong>
+            <a v-if="r.link" :href="r.link" target="_blank" rel="noopener">
+              {{ r.document }}<span v-if="r.page"> · S. {{ r.page }}</span> ↗
+            </a>
+            <template v-else>{{ r.document }}</template>
+          </strong>
           <span class="score">Score: {{ r.score?.toFixed(3) }}</span>
         </div>
         <p>{{ r.snippet }}</p>
@@ -372,6 +392,22 @@ blockquote {
   font-size: 0.75rem;
   color: var(--muted);
   margin-bottom: 0.25rem;
+}
+.hint {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 0.15rem 0 0.4rem;
+}
+.pages {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
 }
 table {
   width: 100%;
