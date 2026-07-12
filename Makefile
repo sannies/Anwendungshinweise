@@ -78,3 +78,14 @@ deploy: build-frontend ## Frontend bauen und den kompletten Stack deployen
 .PHONY: destroy
 destroy: ## Stack wieder abbauen
 	cd infra && source ../$(VENV)/bin/activate && $(CDK) destroy --force
+
+# --------------------------------------------------------------------------
+# End-to-End-Demo (nach dem Deploy)
+# --------------------------------------------------------------------------
+.PHONY: demo
+demo: ## E2E: PDF=… hochladen, indizieren, Frage stellen. Bsp: make demo PDF=sample-docs/x.pdf Q="…"
+	$(PY) scripts/e2e_demo.py --pdf "$(PDF)" --question "$(Q)"
+
+.PHONY: ask
+ask: ## Nur fragen (PDFs schon indiziert). Bsp: make ask Q="Wie gehe ich bei losem Putz vor?"
+	$(PY) scripts/e2e_demo.py --skip-upload --question "$(Q)"
