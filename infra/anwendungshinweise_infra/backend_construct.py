@@ -45,6 +45,7 @@ class Backend(Construct):
             "DOCUMENTS_PREFIX": config.documents_prefix,
             "GENERATION_MODEL_ARN": generation_model_arn,
             "MAX_RESULTS": str(config.max_results),
+            "MIN_SCORE": str(config.min_score),
         }
 
         # Ein gemeinsames Code-Asset für beide Handler (nur boto3 nötig -> keine

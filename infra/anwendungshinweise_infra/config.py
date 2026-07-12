@@ -16,6 +16,7 @@ class StackConfig:
     embedding_dimensions: int
     generation_model_id: str
     max_results: int
+    min_score: float
     chunk_max_tokens: int
     chunk_overlap_percentage: int
 
@@ -37,6 +38,7 @@ class StackConfig:
                 "generationModelId", "mistral.mistral-large-2402-v1:0"
             ),
             max_results=int(get("maxResults", 8)),
+            min_score=float(get("minScore", 0.4)),
             chunk_max_tokens=int(get("chunkMaxTokens", 300)),
             chunk_overlap_percentage=int(get("chunkOverlapPercentage", 20)),
         )

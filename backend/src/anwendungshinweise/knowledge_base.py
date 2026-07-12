@@ -46,10 +46,35 @@ $output_format_instructions$"""
 # Formulierung, mit der das Modell bei fehlender Grundlage antwortet (siehe
 # Prompt). Wird zusätzlich zur Quellen-Prüfung zur Warnungs-Erkennung genutzt.
 NO_MATCH_PHRASE = "keine ausreichende angabe"
+NO_MATCH_ANSWER = (
+    "Dazu finde ich in den vorliegenden Anwendungshinweisen keine ausreichende Angabe."
+)
 NO_MATCH_WARNING = (
     "Zu dieser Frage wurde in den hinterlegten Anwendungshinweisen kein "
-    "ausreichender Treffer gefunden – die Antwort ist nicht durch Quellen belegt."
+    "Treffer gefunden – die Antwort ist nicht durch Quellen belegt."
 )
+LOW_SCORE_WARNING = (
+    "Die gefundenen Passagen sind für diese Frage nur schwach relevant "
+    "(Relevanzscore unter der Schwelle) – die Antwort ist nicht belastbar belegt."
+)
+
+
+def _top_score(cfg: Config, query: str) -> float | None:
+    """Bester Relevanzscore der Vektorsuche (für die Trefferschwelle)."""
+    client = get_client("bedrock-agent-runtime")
+    response = client.retrieve(
+        knowledgeBaseId=cfg.knowledge_base_id,
+        retrievalQuery={"text": query},
+        retrievalConfiguration={
+            "vectorSearchConfiguration": {"numberOfResults": cfg.max_results}
+        },
+    )
+    scores = [
+        item.get("score")
+        for item in response.get("retrievalResults", [])
+        if item.get("score") is not None
+    ]
+    return max(scores) if scores else None
 
 
 def _s3_uri_to_name(uri: str | None) -> str | None:
@@ -128,6 +153,20 @@ def retrieve_and_generate(
     """Beantwortet eine Frage grounded auf der Knowledge Base."""
     client = get_client("bedrock-agent-runtime")
 
+    # Trefferschwelle prüfen: liegt der beste Relevanzscore unter der Schwelle,
+    # wird gar nicht generiert, sondern direkt mit Warnung geantwortet.
+    top_score = _top_score(cfg, question)
+    if cfg.min_score > 0 and (top_score is None or top_score < cfg.min_score):
+        return {
+            "answer": NO_MATCH_ANSWER,
+            "sessionId": None,
+            "citations": [],
+            "sources": [],
+            "grounded": False,
+            "warning": NO_MATCH_WARNING if top_score is None else LOW_SCORE_WARNING,
+            "topScore": top_score,
+        }
+
     request: dict[str, Any] = {
         "input": {"text": question},
         "retrieveAndGenerateConfiguration": {
@@ -169,6 +208,7 @@ def retrieve_and_generate(
         "sources": sources,
         "grounded": grounded,
         "warning": None if grounded else NO_MATCH_WARNING,
+        "topScore": top_score,
     }
 
 

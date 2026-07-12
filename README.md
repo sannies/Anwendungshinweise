@@ -165,7 +165,10 @@ Antwortformat:
 
 - Wird **kein ausreichender Treffer** in den PDFs gefunden, liefert die API
   `grounded: false` samt `warning`-Text; das Frontend zeigt dann eine deutliche
-  Warnung und `uv run poe demo` steigt mit Warnung und Exit-Code 2 aus.
+  Warnung und `uv run poe demo` steigt mit Warnung und Exit-Code 2 aus. Als
+  „kein Treffer" gilt: keine Quellen, die Nicht-gefunden-Formulierung des
+  Modells, **oder** ein bester Relevanzscore unter `minScore` (dann wird gar
+  nicht erst generiert). Das Feld `topScore` in der Antwort zeigt den besten Score.
 - Die Vektorsuche läuft automatisch über **alle** indizierten PDFs; die
   zurückgegebenen `sources` sind genau die für die Frage **relevanten** PDFs.
 - Jede Fundstelle enthält die **Seitenzahl** (aus dem Bedrock-Metadatum
@@ -218,6 +221,7 @@ Zentrale Parameter stehen im CDK-Context (`infra/cdk.json`) und lassen sich per
 | `embeddingDimensions` | `1024` | Vektordimension (muss zum Modell passen) |
 | `generationModelId` | `mistral.mistral-large-2402-v1:0` | Generierungsmodell. Foundation-Model-ID (z. B. `mistral.…`), Inference-Profile-ID (z. B. `eu.anthropic.claude-3-5-sonnet-20240620-v1:0`) oder volle ARN – die passende ARN wird automatisch abgeleitet. |
 | `maxResults` | `8` | Anzahl der abgerufenen Passagen |
+| `minScore` | `0.4` | Mindest-Relevanzscore des besten Treffers; darunter Warnung statt Antwort (`0` = aus) |
 | `chunkMaxTokens` / `chunkOverlapPercentage` | `300` / `20` | Chunking |
 
 ## Tests & Qualität

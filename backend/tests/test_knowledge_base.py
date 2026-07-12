@@ -95,17 +95,13 @@ def test_retrieve_and_generate_shapes_output(fake_clients):
 
 
 class FakeAgentRuntimeNoMatch:
-    """Simuliert 'kein Treffer': keine Zitate + Nicht-gefunden-Antwort."""
+    """Simuliert 'kein Treffer': Vektorsuche liefert keine Ergebnisse."""
+
+    def retrieve(self, **kwargs):
+        return {"retrievalResults": []}
 
     def retrieve_and_generate(self, **kwargs):
-        return {
-            "sessionId": "sess-x",
-            "output": {
-                "text": "Dazu finde ich in den vorliegenden Anwendungshinweisen "
-                "keine ausreichende Angabe."
-            },
-            "citations": [],
-        }
+        raise AssertionError("Ohne Treffer darf nicht generiert werden")
 
 
 def test_no_match_sets_warning(fake_clients):
@@ -118,6 +114,38 @@ def test_no_match_sets_warning(fake_clients):
     assert result["grounded"] is False
     assert result["warning"] and "kein" in result["warning"].lower()
     assert result["sources"] == []
+    assert result["topScore"] is None
+
+
+class FakeAgentRuntimeLowScore:
+    """Treffer vorhanden, aber Score unter der Schwelle -> Warnung, kein Gen."""
+
+    def retrieve(self, **kwargs):
+        return {
+            "retrievalResults": [
+                {
+                    "content": {"text": "kaum relevant"},
+                    "location": {"s3Location": {"uri": "s3://docs-bucket/documents/x.pdf"}},
+                    "score": 0.2,
+                    "metadata": {},
+                }
+            ]
+        }
+
+    def retrieve_and_generate(self, **kwargs):
+        raise AssertionError("Bei zu niedrigem Score darf nicht generiert werden")
+
+
+def test_low_score_warns_without_generating(fake_clients):
+    fake_clients["bedrock-agent-runtime"] = FakeAgentRuntimeLowScore()
+    fake_clients["s3"] = FakeS3()
+    cfg = load_config()
+
+    result = kb.retrieve_and_generate(cfg, "schwach relevante Frage")
+
+    assert result["grounded"] is False
+    assert "schwach" in result["warning"].lower()
+    assert result["topScore"] == 0.2
 
 
 def test_sources_aggregate_pages_and_link(fake_clients):

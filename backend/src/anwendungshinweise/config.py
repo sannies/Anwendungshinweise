@@ -33,6 +33,9 @@ class Config:
     max_results: int
     # Gültigkeitsdauer der präsignierten PDF-Links (Sekunden).
     presign_expiry: int
+    # Mindest-Relevanzscore des besten Treffers; darunter wird gewarnt und
+    # nicht generiert (0 deaktiviert die Schwellenprüfung).
+    min_score: float
 
 
 def load_config() -> Config:
@@ -46,4 +49,5 @@ def load_config() -> Config:
         region=os.environ.get("AWS_REGION", "eu-central-1"),
         max_results=int(os.environ.get("MAX_RESULTS", "8")),
         presign_expiry=int(os.environ.get("PRESIGN_EXPIRY", "3600")),
+        min_score=float(os.environ.get("MIN_SCORE", "0.4")),
     )

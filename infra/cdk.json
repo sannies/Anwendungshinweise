@@ -19,6 +19,7 @@
     "embeddingDimensions": 1024,
     "generationModelId": "mistral.mistral-large-2402-v1:0",
     "maxResults": 8,
+    "minScore": 0.4,
     "chunkMaxTokens": 300,
     "chunkOverlapPercentage": 20,
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
