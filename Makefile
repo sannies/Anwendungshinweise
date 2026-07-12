@@ -17,16 +17,20 @@ help: ## Diese Hilfe anzeigen
 	  | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 # --------------------------------------------------------------------------
-# Setup
+# Setup (selbst-bootstrappend: CDK- und Test-Targets installieren die
+# Python-Abhängigkeiten bei Bedarf automatisch in die venv)
 # --------------------------------------------------------------------------
-$(VENV)/bin/activate:
+DEPS_STAMP := $(VENV)/.deps-installed
+
+$(DEPS_STAMP): infra/requirements-dev.txt backend/pyproject.toml
 	python3 -m venv $(VENV)
 	$(PIP) install --upgrade pip
-
-.PHONY: install
-install: $(VENV)/bin/activate ## Alle Python- und Frontend-Abhängigkeiten installieren
 	$(PIP) install -r infra/requirements-dev.txt
 	$(PIP) install -e "backend[dev]"
+	touch $(DEPS_STAMP)
+
+.PHONY: install
+install: $(DEPS_STAMP) ## Alle Python- und Frontend-Abhängigkeiten installieren
 	cd frontend && npm install
 
 # --------------------------------------------------------------------------
@@ -36,16 +40,16 @@ install: $(VENV)/bin/activate ## Alle Python- und Frontend-Abhängigkeiten insta
 test: test-backend test-infra ## Alle Python-Tests ausführen
 
 .PHONY: test-backend
-test-backend: ## Backend-Tests
+test-backend: $(DEPS_STAMP) ## Backend-Tests
 	cd backend && ../$(PY) -m pytest -q
 
 .PHONY: test-infra
-test-infra: ## CDK-Infrastruktur-Tests
+test-infra: $(DEPS_STAMP) ## CDK-Infrastruktur-Tests
 	cd infra && PYTHONPATH=. ../$(PY) -m pytest -q
 
 .PHONY: lint
-lint: ## Ruff-Linting über Backend und Infra
-	$(VENV)/bin/ruff check backend infra
+lint: $(DEPS_STAMP) ## Ruff-Linting über Backend und Infra
+	$(VENV)/bin/ruff check backend infra scripts
 
 # --------------------------------------------------------------------------
 # Frontend
@@ -64,28 +68,28 @@ build-frontend: ## Frontend für die Auslieferung bauen (nach frontend/dist)
 # Die CDK-App wird über die venv-Python-Umgebung ausgeführt (cdk.json ->
 # "python3 app.py"), daher vor jedem CDK-Aufruf die venv aktivieren.
 .PHONY: synth
-synth: ## CloudFormation-Template synthetisieren
+synth: $(DEPS_STAMP) ## CloudFormation-Template synthetisieren
 	cd infra && source ../$(VENV)/bin/activate && $(CDK) synth
 
 .PHONY: bootstrap
-bootstrap: ## CDK-Bootstrap für das Konto/Region (einmalig)
+bootstrap: $(DEPS_STAMP) ## CDK-Bootstrap für das Konto/Region (einmalig)
 	cd infra && source ../$(VENV)/bin/activate && $(CDK) bootstrap
 
 .PHONY: deploy
-deploy: build-frontend ## Frontend bauen und den kompletten Stack deployen
+deploy: $(DEPS_STAMP) build-frontend ## Frontend bauen und den kompletten Stack deployen
 	cd infra && source ../$(VENV)/bin/activate && $(CDK) deploy --require-approval never
 
 .PHONY: destroy
-destroy: ## Stack wieder abbauen
+destroy: $(DEPS_STAMP) ## Stack wieder abbauen
 	cd infra && source ../$(VENV)/bin/activate && $(CDK) destroy --force
 
 # --------------------------------------------------------------------------
 # End-to-End-Demo (nach dem Deploy)
 # --------------------------------------------------------------------------
 .PHONY: demo
-demo: ## E2E: PDF=… hochladen, indizieren, Frage stellen. Bsp: make demo PDF=sample-docs/x.pdf Q="…"
+demo: $(DEPS_STAMP) ## E2E: PDF=… hochladen, indizieren, Frage stellen. Bsp: make demo PDF=sample-docs/x.pdf Q="…"
 	$(PY) scripts/e2e_demo.py --pdf "$(PDF)" --question "$(Q)"
 
 .PHONY: ask
-ask: ## Nur fragen (PDFs schon indiziert). Bsp: make ask Q="Wie gehe ich bei losem Putz vor?"
+ask: $(DEPS_STAMP) ## Nur fragen (PDFs schon indiziert). Bsp: make ask Q="Wie gehe ich bei losem Putz vor?"
 	$(PY) scripts/e2e_demo.py --skip-upload --question "$(Q)"
