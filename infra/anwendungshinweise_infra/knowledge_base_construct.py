@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+
 from aws_cdk import Aws, RemovalPolicy, Stack
 from aws_cdk import aws_bedrock as bedrock
 from aws_cdk import aws_iam as iam
@@ -135,11 +137,21 @@ class KnowledgeBase(Construct):
         self.knowledge_base.node.add_dependency(self.kb_role)
 
         # --- 5) Datenquelle (S3) ---------------------------------------------
+        # Chunking/Ingestion-Änderungen erzwingen bei Bedrock einen Replace der
+        # DataSource. Da CloudFormation die neue vor der alten anlegt, muss der
+        # Name eindeutig sein – daher aus der ingestion-relevanten Config
+        # abgeleitet: unveränderte Config => stabiler Name, geänderte Config =>
+        # neuer Name => kollisionsfreier Replace.
+        ingestion_fingerprint = hashlib.sha1(
+            f"SEMANTIC|{config.chunk_max_tokens}|{config.documents_prefix}".encode()
+        ).hexdigest()[:8]
+        data_source_name = f"{prefix}-src-{ingestion_fingerprint}"
+
         self.data_source = bedrock.CfnDataSource(
             self,
             "DataSource",
             knowledge_base_id=self.knowledge_base.attr_knowledge_base_id,
-            name=f"{prefix}-s3-source",
+            name=data_source_name,
             # Beim Löschen der Datenquelle die zugehörigen Vektoren mit entfernen.
             data_deletion_policy="DELETE",
             data_source_configuration=bedrock.CfnDataSource.DataSourceConfigurationProperty(
